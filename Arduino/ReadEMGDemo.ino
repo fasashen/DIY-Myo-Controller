@@ -45,6 +45,11 @@ struct Olimexino328_packet
 /**********************************************************/
 #include <compat/deprecated.h>
 #include <FlexiTimer2.h>
+//#include <Servo.h>
+
+//Servo myservo;
+//int pos = 0;
+
 //http://www.arduino.cc/playground/Main/FlexiTimer2
 
 // All definitions
@@ -81,7 +86,6 @@ void Toggle_LED1(void){
  
 }
 
-
 /****************************************************/
 /*  Function name: toggle_GAL_SIG                   */
 /*  Parameters                                      */
@@ -106,9 +110,13 @@ void toggle_GAL_SIG(void){
 /****************************************************/
 void setup() {
 
-  // Serial Port
+  
+   
+ // Serial Port
  //Serial.begin(57600);
   Serial.begin(115200);
+
+  //myservo.attach(10);
 
  establishContact();
  //Set speed to 57600 bps
@@ -117,7 +125,7 @@ void setup() {
  
  // LED1
  pinMode(LED1, OUTPUT);  //Setup LED1 direction
- digitalWrite(LED1,LOW); //Setup LED1 state
+// digitalWrite(LED1,LOW); //Setup LED1 state
  pinMode(CAL_SIG, OUTPUT);
  
  //Write packet header and footer
@@ -155,12 +163,10 @@ void setup() {
 
 void establishContact() {
   while (Serial.available() <= 0) {
-    Serial.print('A');   // send a capital A
-    delay(300);
+    Serial.print('A');   // send a capital 
+    delay(100);
   }
 }
-
-
 
 
 /****************************************************/
@@ -186,7 +192,7 @@ void Timer2_Overflow_ISR()
   for(TXIndex=0;TXIndex<17;TXIndex++){
     Serial.write(TXBuf[TXIndex]);
   }
-  
+    
   // Increment the packet counter
   TXBuf[3]++;			
   
@@ -207,7 +213,14 @@ void Timer2_Overflow_ISR()
 /*    Action: Puts MCU into sleep mode.             */
 /****************************************************/
 void loop() {
+__asm__ __volatile__ ("sleep");
   
- __asm__ __volatile__ ("sleep");
+ // if (Serial.available() > 0) {
+  //  pos = Serial.read();
+  //  if (pos != -1) {
+   //   myservo.write(pos);
+   //   delay(100);
+   // }
+  //}
  
 }
