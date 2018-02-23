@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib import style
 import time
 import struct
+import pickle
 
 def establish_connection(serialport='/dev/cu.wchusbserial1420',baudrate=115200):
     try:
@@ -37,41 +38,66 @@ def establish_connection(serialport='/dev/cu.wchusbserial1420',baudrate=115200):
         arduino.close()
         return None
 
+def typecast_swap_float(arr):
+    '''
+    Magicaly converts uint8 array to uint16 value and swap bytes.
+    Replica of Matlab typecast() and swapbytes() functions
+    Returns float value
+    '''
+    arr = np.flip(np.uint8(arr),0)
+    result = float(np.uint16(arr[1]/255*65535-arr[1]+arr[0]))
+    return result
 
 def realtime_emg(ard):
     if ard:
         packsize = 17
         numread = 20
+        plotsize = 256
         k = 0
-        data = []
+
+        data = [[0]*plotsize,
+                [0]*plotsize,
+                [0]*plotsize]
 
         plt.ion()
         plt.ylabel('Voltage')
         plt.xlabel('Ts')
-        plt.axis([0, 256,-10,260])
-
 
         while True:
             if ard.inWaiting() >= numread * packsize:
                 for i in range(numread):
-                    # A = struct.unpack('{}B'.format(packsize),ard.read(packsize))
-                    A = ard.read(packsize)
-                    # A = np.array(br,dtype=np.uint8)
-                    print(A.decode('utf-8', 'ignore'))
-                    # data.append(abs(A[5]-A[4]))
+                    try:
+                        A = struct.unpack('{}B'.format(packsize),ard.read(packsize))
+                    except:
+                        ard.close()
+                    data[0][k] = typecast_swap_float(A[4:6]) # Channel 1 data
+                    data[1][k] = typecast_swap_float(A[6:8]) # Channel 2 data
+                    data[2][k] = typecast_swap_float(A[8:10])
+
+                    plt.plot(range(plotsize), data[0])
+                    plt.plot(range(plotsize), data[1])
+                    plt.plot(range(plotsize), data[2])
+                    plt.pause(0.05)
+
 
                     k = k + 1
-                    # plt.plot(range(len(data)), data)
-                    # plt.pause(0.05)
+                    if k >= plotsize:
+                        k = 1
 
-                if k >= 1:
-                    k = 0
-                    break
 
+
+        with open('emg_binary_data.pickle', 'wb') as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
         ard.close()
         print('Connection closed.')
 
 
+
 ard = establish_connection()
 realtime_emg(ard)
+
+# with open('emg_binary_data.pickle', 'rb') as f:
+#     data = pickle.load(f)
+#
+# print(data)
