@@ -37,19 +37,6 @@ def establish_connection(serialport='/dev/cu.wchusbserial1420',baudrate=115200):
         arduino.close()
         return None
 
-def fread(fid, nelements, dtype):
-
-    """Equivalent to Matlab fread function"""
-
-    if dtype is np.str:
-        dt = np.uint8  # WARNING: assuming 8-bit ASCII for np.str!
-    else:
-        dt = dtype
-
-    data_array = np.fromfile(fid, dt, nelements)
-    data_array.shape = (nelements, 1)
-
-    return data_array
 
 def realtime_emg(ard):
     if ard:
