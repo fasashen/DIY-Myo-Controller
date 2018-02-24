@@ -1,10 +1,11 @@
 import serial
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import style
+import matplotlib
 import time
 import struct
 import pickle
+
 
 def establish_connection(serialport='/dev/cu.wchusbserial1420',baudrate=115200):
     try:
@@ -44,60 +45,76 @@ def typecast_swap_float(arr):
     Replica of Matlab typecast() and swapbytes() functions
     Returns float value
     '''
-    arr = np.flip(np.uint8(arr),0)
+    arr = np.uint8(arr)
+    if arr[0] < arr[1]:
+        arr = np.flip(arr,0)
     result = float(np.uint16(arr[1]/255*65535-arr[1]+arr[0]))
     return result
 
 def realtime_emg(ard):
-    if ard:
-        packsize = 17
-        numread = 20
-        plotsize = 256
-        k = 0
+    packsize = 17
+    numread = 20
+    plotsize = 256
+    k = 0
 
-        data = [[0]*plotsize,
-                [0]*plotsize,
-                [0]*plotsize]
+    data = [[0]*plotsize,
+            [0]*plotsize,
+            [0]*plotsize]
 
-        plt.ion()
-        plt.ylabel('Voltage')
-        plt.xlabel('Ts')
+    storage_emg = []
+    storage_volt = []
 
-        while True:
-            if ard.inWaiting() >= numread * packsize:
-                for i in range(numread):
-                    try:
-                        A = struct.unpack('{}B'.format(packsize),ard.read(packsize))
-                    except:
-                        ard.close()
-                    data[0][k] = typecast_swap_float(A[4:6]) # Channel 1 data
-                    data[1][k] = typecast_swap_float(A[6:8]) # Channel 2 data
-                    data[2][k] = typecast_swap_float(A[8:10])
+    plt.ion()
 
-                    plt.plot(range(plotsize), data[0])
-                    plt.plot(range(plotsize), data[1])
-                    plt.plot(range(plotsize), data[2])
-                    plt.pause(0.05)
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
 
 
-                    k = k + 1
-                    if k >= plotsize:
-                        k = 1
+    ax.plot(range(plotsize), data[0], label ='Channel 1')
+    ax.plot(range(plotsize), data[1], label ='Channel 2')
+    ax.plot(range(plotsize), data[2], label ='Channel 3')
+
+    fig.show()
+
+    while True:
+        if ard.inWaiting() >= numread * packsize:
+            for i in range(numread):
+                A = struct.unpack('{}B'.format(packsize),ard.read(packsize))
+
+                data[0][k] = typecast_swap_float(A[4:6]) # Channel 1 data
+                data[1][k] = typecast_swap_float(A[6:8]) # Channel 2 data
+                data[2][k] = typecast_swap_float(A[8:10]) # Channel 3 data
+
+                storage_emg.append(A[4:6]) # Storing Channel 1 history data for future debugging
+                storage_volt.append(data[0][k])
+
+                ax.clear()
+                ax.set_xlim(0,plotsize)
+                ax.plot(range(plotsize), data[0], linewidth = 0.5, label = 'Channel 1')
+                ax.plot(range(plotsize), data[1], linewidth = 0.5, label = 'Channel 2')
+                ax.plot(range(plotsize), data[2], linewidth = 0.5, label = 'Channel 3')
+                plt.pause(0.05)
+
+                k = k + 1
+                if k >= plotsize:
+                    with open('emg_history.pickle', 'wb') as f:
+                        pickle.dump([storage_emg, storage_volt], f, protocol=pickle.HIGHEST_PROTOCOL)
+                    k = 1
+
+    ard.close()
+    print('Connection closed.')
 
 
 
-        with open('emg_binary_data.pickle', 'wb') as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+# ard = establish_connection()
+# if ard: realtime_emg(ard)
 
-        ard.close()
-        print('Connection closed.')
+with open('emg_history.pickle', 'rb') as f:
+    data = pickle.load(f)
 
+for b,v in zip(data[0],data[1]):
+    print(b,typecast_swap_float(b))
 
-
-ard = establish_connection()
-realtime_emg(ard)
-
-# with open('emg_binary_data.pickle', 'rb') as f:
-#     data = pickle.load(f)
-#
-# print(data)
+# A = (2, 1)
+# B = typecast_swap_float(A)
+# print(A,B)
