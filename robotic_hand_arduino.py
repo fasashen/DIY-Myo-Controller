@@ -2,7 +2,6 @@ import serial
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import time
 import struct
 import pickle
@@ -63,21 +62,28 @@ def datasync(A,syncbyte1,syncbyte2,packsize):
 
     B = struct.unpack('{}B'.format(sb1_index),ard.read(sb1_index))
     A = A[sb1_index:] + B
+    print('Synchronization is done.')
     return(A)
-
 
 def realtime_emg(ard):
     packsize = 17
     numread = 20
     plotsize = 256
+    frequency = 256
     k = 0
 
     syncbyte1 = 165
     syncbyte2 = 90
 
+    # Voltage data of 6 channels
     data = [[0]*plotsize,
             [0]*plotsize,
+            [0]*plotsize,
+            [0]*plotsize,
+            [0]*plotsize,
             [0]*plotsize]
+
+    x_time = [x/frequency for x in range(plotsize)]
 
     storage_emg = []
     storage_volt = []
@@ -85,14 +91,18 @@ def realtime_emg(ard):
     plt.ion()
 
     fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.set_xlim(0,plotsize)
-    ax.set_ylim(450,550)
-    ax.set_
+    ax = fig.add_subplot(311)
+    ax.set_xlim(0,1)
+    # ax.set_ylim(450,550)
+    ax.set_xlabel('Time')
+    ax.set_ylabel("Voltage")
+    ax.grid()
+    ax.ticklabel_format(axis='both', style='plain')
 
-    ch1, = ax.plot(range(plotsize), data[0], label ='Channel 1', linewidth = 1)
-    ch2, = ax.plot(range(plotsize), data[1], label ='Channel 2', linewidth = 1)
-    ch3, = ax.plot(range(plotsize), data[2], label ='Channel 3', linewidth = 1)
+    ch1, = ax.plot(x_time, data[0], '-b', label ='Channel 1', linewidth = 1)
+    ch2, = ax.plot(x_time, data[1], '--r', label ='Channel 2', linewidth = 1)
+    # ch3, = ax.plot(x_time, data[2], label ='Channel 3', linewidth = 1)
+    ax.legend(loc='upper left')
 
     fig.show()
 
@@ -103,8 +113,6 @@ def realtime_emg(ard):
                 A = struct.unpack('{}B'.format(packsize),ard.read(packsize))
                 while syncbyte1 not in A and syncbyte2 not in A:
                     A = struct.unpack('{}B'.format(packsize),ard.read(packsize))
-
-                print(A)
                 if A[0] != syncbyte1 or A[1] != syncbyte2:
                     A = datasync(A,syncbyte1,syncbyte2,packsize)
 
@@ -117,39 +125,32 @@ def realtime_emg(ard):
 
                 k = k + 1
                 if k >= plotsize:
-                    # with open('emg_history.pickle', 'wb') as f:
+                    # with open('emg_history.pickle', 'w b') as f:
                     #     pickle.dump([storage_emg, storage_volt], f, protocol=pickle.HIGHEST_PROTOCOL)
-                    # plt.savefig('test.png')
                     k = 1
 
         else:
-            print('Waiting for bytes from Arduino')
+            # print('Waiting for bytes from Arduino')
+            pass
 
 
         ch1.set_ydata(data[0])
         ch2.set_ydata(data[1])
-        ch3.set_ydata(data[2])
-        # fig.canvas.draw()
-        plt.pause(1/1152000)
+        # ch3.set_ydata(data[2])
+        ax.relim()
+        ax.autoscale_view()
+        plt.pause(0.01)
 
-        packets_inwaiting = np.round(ard.inWaiting()/packsize)
-        print(packets_inwaiting)
+        packets_inwaiting = int(np.round(ard.inWaiting()/packsize))
         if packets_inwaiting >= 30:
-            print('Update rate is too slow: {}'.format(packets_inwaiting))
+            print('Update rate is slow: {} packets inwaiting.'.format(packets_inwaiting))
 
     ard.close()
     print('Connection closed.')
 
 
-
 ard = establish_connection('COM3')
 if ard: realtime_emg(ard)
 
-# A = (165, 90) + (2, 24, 2, 2, 2, 4, 2, 2, 1, 238, 1, 220, 1, 208, 1)
-# print(A[2:])
-
 # with open('emg_history.pickle', 'rb') as f:
 #     data = pickle.load(f)
-#
-# for b,v in zip(data[0],data[1]):
-#     print(b,typecast_swap_float(b))
