@@ -24,7 +24,7 @@ def establish_connection(serialport='/dev/cu.wchusbserial1420',baudrate=115200):
         time_elapsed = time.time() - t
 
         if arduino.inWaiting():
-            first_byte = arduino.read()
+            first_byte = arduino.read(1)
 
         if first_byte == b'A':
             arduino.write(b'h')
@@ -79,6 +79,7 @@ def realtime_emg(ard):
     while True:
         if ard.inWaiting() >= numread * packsize:
             for i in range(numread):
+                print(i)
                 A = struct.unpack('{}B'.format(packsize),ard.read(packsize))
 
                 data[0][k] = typecast_swap_float(A[4:6]) # Channel 1 data
@@ -99,6 +100,7 @@ def realtime_emg(ard):
                 if k >= plotsize:
                     with open('emg_history.pickle', 'wb') as f:
                         pickle.dump([storage_emg, storage_volt], f, protocol=pickle.HIGHEST_PROTOCOL)
+                    plt.savefig('test.png')
                     k = 1
 
     ard.close()
@@ -106,14 +108,15 @@ def realtime_emg(ard):
 
 
 
-# ard = establish_connection()
+ard = establish_connection()
+ard.close()
 # if ard: realtime_emg(ard)
-
-with open('emg_history.pickle', 'rb') as f:
-    data = pickle.load(f)
-
-for b,v in zip(data[0],data[1]):
-    print(b,typecast_swap_float(b))
+#
+# with open('emg_history.pickle', 'rb') as f:
+#     data = pickle.load(f)
+#
+# for b,v in zip(data[0],data[1]):
+#     print(b,typecast_swap_float(b))
 
 # A = (2, 1)
 # B = typecast_swap_float(A)
