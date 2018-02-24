@@ -70,7 +70,9 @@ def realtime_emg(ard):
     numread = 20
     plotsize = 256
     frequency = 256
+    plotsize_nstd = frequency*5 # 5 seconds
     k = 0
+    k_nstd = 0
 
     syncbyte1 = 165
     syncbyte2 = 90
@@ -83,17 +85,21 @@ def realtime_emg(ard):
             [0]*plotsize,
             [0]*plotsize]
 
+    nanstd_data = [[0]*plotsize_nstd,
+                   [0]*plotsize_nstd,
+                   [0]*plotsize_nstd]
+
     x_time = [x/frequency for x in range(plotsize)]
+    nstd_time = [x/frequency for x in range(plotsize_nstd)]
 
     storage_emg = []
     storage_volt = []
 
-    plt.ion()
-
+    # plt.ion()
     fig = plt.figure()
+
     ax = fig.add_subplot(311)
     ax.set_xlim(0,1)
-    # ax.set_ylim(450,550)
     ax.set_xlabel('Time')
     ax.set_ylabel("Voltage")
     ax.grid()
@@ -103,6 +109,16 @@ def realtime_emg(ard):
     ch2, = ax.plot(x_time, data[1], '--r', label ='Channel 2', linewidth = 1)
     # ch3, = ax.plot(x_time, data[2], label ='Channel 3', linewidth = 1)
     ax.legend(loc='upper left')
+
+    nstdplot = fig.add_subplot(313)
+    nstdplot.grid()
+    nstdplot.set_xlabel('Time, sec')
+    nstdplot.set_ylabel('Nanstd of Voltage')
+
+    ch1_nstd, = nstdplot.plot(nstd_time, nanstd_data[0], '-b', label ='Channel 1', linewidth = 1)
+    ch2_nstd, = nstdplot.plot(nstd_time, nanstd_data[1], '-r', label ='Channel 2', linewidth = 1)
+
+    nstdplot.legend(loc='upper left')
 
     fig.show()
 
@@ -123,27 +139,40 @@ def realtime_emg(ard):
                 # storage_emg.append(A[4:6]) # Storing Channel 1 history data for future debugging
                 # storage_volt.append(data[0][k])
 
-                k = k + 1
-                if k >= plotsize:
-                    # with open('emg_history.pickle', 'w b') as f:
-                    #     pickle.dump([storage_emg, storage_volt], f, protocol=pickle.HIGHEST_PROTOCOL)
-                    k = 1
+                nanstd_data[0][k_nstd] = np.nanstd(data[0])
+                nanstd_data[1][k_nstd] = np.nanstd(data[1])
+                nanstd_data[2][k_nstd] = np.nanstd(data[2])
 
+                k = k + 1
+                k_nstd = k_nstd + 1
+                if k >= plotsize:
+                    k = 0
+                if k_nstd >= plotsize_nstd:
+                    k_nstd = 0
         else:
             # print('Waiting for bytes from Arduino')
             pass
-
 
         ch1.set_ydata(data[0])
         ch2.set_ydata(data[1])
         # ch3.set_ydata(data[2])
         ax.relim()
         ax.autoscale_view()
-        plt.pause(0.01)
+
+        ch1_nstd.set_ydata(nanstd_data[0])
+        ch2_nstd.set_ydata(nanstd_data[1])
+
+        nstdplot.relim()
+        nstdplot.autoscale_view()
+
+        plt.pause(0.001)
 
         packets_inwaiting = int(np.round(ard.inWaiting()/packsize))
-        if packets_inwaiting >= 30:
-            print('Update rate is slow: {} packets inwaiting.'.format(packets_inwaiting))
+        if packets_inwaiting >= 50:
+            print('Update rate is slow: {} packets inwaiting, {} second delay.'.format(packets_inwaiting, np.round(packets_inwaiting/256,2)))
+
+        # with open('emg_history.pickle', 'w b') as f:
+        #     pickle.dump([storage_emg, storage_volt], f, protocol=pickle.HIGHEST_PROTOCOL)
 
     ard.close()
     print('Connection closed.')
