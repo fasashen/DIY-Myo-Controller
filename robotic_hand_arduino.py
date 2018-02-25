@@ -3,9 +3,19 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import time
+import os
 import struct
 import pickle
 
+class EMG:
+    def __init__(self, serialport, baudrate, numread=20, packsize=17, frequency=256, syncbyte1=165, syncbyte2=90):
+        self.serialport = serialport
+        self.baudrate = baudrate
+        self.numread = 20
+        self.packsize = 17
+        self.frequency = 256
+        self.syncbyte1 = 165
+        self.syncbyte2 = 90
 
 def establish_connection(serialport='/dev/cu.wchusbserial1420',baudrate=115200):
     try:
@@ -68,8 +78,9 @@ def datasync(A,syncbyte1,syncbyte2,packsize):
 def realtime_emg(ard):
     packsize = 17
     numread = 20
-    plotsize = 256
     frequency = 256
+
+    plotsize = frequency
     plotsize_nstd = frequency*5 # 5 seconds
     k = 0
     k_nstd = 0
@@ -113,7 +124,7 @@ def realtime_emg(ard):
     nstdplot = fig.add_subplot(313)
     nstdplot.grid()
     nstdplot.set_xlabel('Time, sec')
-    nstdplot.set_ylabel('Nanstd of Voltage')
+    nstdplot.set_ylabel('Standard deviation of Voltage')
 
     ch1_nstd, = nstdplot.plot(nstd_time, nanstd_data[0], '-b', label ='Channel 1', linewidth = 1)
     ch2_nstd, = nstdplot.plot(nstd_time, nanstd_data[1], '-r', label ='Channel 2', linewidth = 1)
@@ -161,7 +172,6 @@ def realtime_emg(ard):
 
         ch1_nstd.set_ydata(nanstd_data[0])
         ch2_nstd.set_ydata(nanstd_data[1])
-
         nstdplot.relim()
         nstdplot.autoscale_view()
 
