@@ -1,4 +1,4 @@
-# Arduino-Robotic-Hand-Control
+# EMG-Controlled Robotic Hand
 Control Arduino-based robotic hand by EMG muscle data with simple machine learning algorithm
 
 Student project on creating a basic machine learning algorithm to control a Arduino-Uno based robotic hand by EMG data from on-skin electrodes.
