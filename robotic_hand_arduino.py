@@ -22,6 +22,7 @@ class EMG:
     def establish_connection(self):
         try:
             self.arduino = serial.Serial(self.serialport, self.baudrate)
+            print('Serial port found. Trying to establish connection...')
         except:
             print('Could not find serial port')
             return None
@@ -62,17 +63,19 @@ class EMG:
         return result
 
     def datasync(self, A):
+        print(A)
         sb1_index = A.index(self.syncbyte1)
-        if A[sb1_index + 1] == self.syncbyte2:
-            sb2_index = sb1_index + 1
-        else:
-            sb1_index = A[sb1_index+1:].index(self.syncbyte1) + sb1_index + 1
-            sb2_index = sb1_index + 1
-
-        if sb2_index >= self.packsize: sb2_index = 0
-
+        sb2_index = A.index(self.syncbyte2)
+        # if sb2_index - sb1_index == 1 or (sb2_index==0 and sb1_index == len(A)-1):
+        #     pass
+        # else:
+        #     sb1_index = A[sb1_index+1:].index(self.syncbyte1) + sb1_index + 1
+        #     sb2_index = sb1_index + 1
+        #
+        # if sb2_index >= self.packsize: sb2_index = 0s
         B = struct.unpack('{}B'.format(sb1_index),self.arduino.read(sb1_index))
         A = A[sb1_index:] + B
+        print(A)
         print('Synchronization is done.')
         return(A)
 
@@ -138,8 +141,11 @@ class EMG:
                 for i in range(self.numread):
 
                     A = struct.unpack('{}B'.format(self.packsize),self.arduino.read(self.packsize))
-                    while self.syncbyte1 not in A and self.syncbyte2 not in A:
+                    while True:
                         A = struct.unpack('{}B'.format(self.packsize),self.arduino.read(self.packsize))
+                        if self.syncbyte1 in A and self.syncbyte2 in A:
+                            break
+
                     if A[0] != self.syncbyte1 or A[1] != self.syncbyte2:
                         A = self.datasync(A)
 
@@ -194,4 +200,4 @@ class EMG:
 
 emg = EMG()
 arduino = emg.establish_connection()
-emg.realtime_emg()
+if arduino: emg.realtime_emg()
