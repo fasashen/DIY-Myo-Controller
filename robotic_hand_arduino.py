@@ -71,7 +71,7 @@ class EMG:
 
         if sb2_index >= self.packsize: sb2_index = 0
 
-        B = struct.unpack('{}B'.format(sb1_index),ard.read(sb1_index))
+        B = struct.unpack('{}B'.format(sb1_index),self.arduino.read(sb1_index))
         A = A[sb1_index:] + B
         print('Synchronization is done.')
         return(A)
@@ -192,6 +192,6 @@ class EMG:
         print('Connection closed.')
 
 
-emg = EMG('COM3')
+emg = EMG()
 arduino = emg.establish_connection()
 emg.realtime_emg()
