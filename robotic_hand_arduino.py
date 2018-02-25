@@ -102,7 +102,6 @@ class EMG:
         ft_x = [int(self.frequency/nfft*x) for x in range(int(nfft/2))]
         ft0_data = [[0]*nfft]
         ft_data = [[0]*len(ft_x)]
-        print(ft_x)
 
         # Standard deviation of 6 channels
         nanstd_data = [[0]*plotsize_nstd,
