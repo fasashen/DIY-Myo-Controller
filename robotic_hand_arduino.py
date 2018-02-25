@@ -3,12 +3,11 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import time
-import os
 import struct
 import pickle
 
 class EMG:
-    def __init__(self, serialport='/dev/cu.wchusbserial1420',baudrate=115200,numread=20,packsize=17,frequency=256,syncbyte1=165,syncbyte2=90,connection_tiomeout=5,first_byte = b'A'):
+    def __init__(self, serialport='/dev/cu.wchusbserial1420',baudrate=115200,numread=20,packsize=17,frequency=256,syncbyte1=165,syncbyte2=90,connection_timeout=5,first_byte = b'A'):
         self.serialport = serialport
         self.baudrate = baudrate
         self.numread = numread
@@ -16,7 +15,7 @@ class EMG:
         self.frequency = frequency
         self.syncbyte1 = syncbyte1
         self.syncbyte2 = syncbyte2
-        self.timeout = connection_tiomeout
+        self.timeout = connection_timeout
         self.first_byte = first_byte
         self.arduino = None
 
@@ -178,7 +177,7 @@ class EMG:
             nstdplot.autoscale_view()
 
             try: #Catches error when plot is closed by user
-                plt.pause(0.00001)
+                plt.pause(0.0001)
             except:
                 break
 
@@ -196,6 +195,3 @@ class EMG:
 emg = EMG('COM3')
 arduino = emg.establish_connection()
 emg.realtime_emg()
-
-# with open('emg_history.pickle', 'rb') as f:
-#     data = pickle.load(f)
