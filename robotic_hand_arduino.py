@@ -6,6 +6,7 @@ import time
 import struct
 import pickle
 from scipy import signal
+from multiprocessing import Process
 
 class EMG:
     def __init__(self, serialport='/dev/cu.wchusbserial1420',baudrate=115200,numread=20,packsize=17,frequency=256,syncbyte1=165,syncbyte2=90,connection_timeout=5,first_byte = b'A'):
@@ -89,22 +90,22 @@ class EMG:
         k_nstd = 0
 
         # Voltage data of 6 channels
-        data = [[0]*plotsize,
+        self.data = [[0]*plotsize,
                 [0]*plotsize,
                 [0]*plotsize,
                 [0]*plotsize,
                 [0]*plotsize,
                 [0]*plotsize]
-        x_time = [x/self.frequency for x in range(plotsize)]
+        self.x_time = [x/self.frequency for x in range(plotsize)]
 
         # Fourie transform of voltage data for Channel 1
-        nfft = self.frequency
-        ft_x = [int(self.frequency/nfft*x) for x in range(int(nfft/2))]
-        ft0_data = [[0]*nfft]
-        ft_data = [[0]*len(ft_x)]
+        self.nfft = self.frequency
+        self.ft_x = [int(self.frequency/self.nfft*x) for x in range(int(self.nfft/2))]
+        self.ft0_data = [[0]*self.nfft]
+        self.ft_data = [[0]*len(self.ft_x)]
 
         # Standard deviation of 6 channels
-        nanstd_data = [[0]*plotsize_nstd,
+        self.nstd_data = [[0]*plotsize_nstd,
                        [0]*plotsize_nstd,
                        [0]*plotsize_nstd,
                        [0]*plotsize_nstd,
@@ -112,50 +113,16 @@ class EMG:
                        [0]*plotsize_nstd]
 
         # Trying to pick up rigth time scale (doesn't work properly, redesign is needed)
-        nstd_time = [x/np.round(self.frequency/self.numread) for x in range(plotsize_nstd)]
+        self.nstd_time = [x/np.round(self.frequency/self.numread) for x in range(plotsize_nstd)]
 
         storage_emg = []
         storage_volt = []
 
-        # plt.ion()
-        fig = plt.figure()
+        # Plot initialization
+        self.plot_init()
 
-        # Voltage channels plot
-        ax = fig.add_subplot(311)
-        ax.set_xlim(0,1)
-        ax.set_xlabel('Time')
-        ax.set_ylabel("Voltage")
-        ax.grid()
-        ax.ticklabel_format(axis='both', style='plain')
+        p = Process(target=self.plot_update())
 
-        ch1, = ax.plot(x_time, data[0], '-b', label ='Channel 1', linewidth = 0.5)
-        ch2, = ax.plot(x_time, data[1], '--r', label ='Channel 2', linewidth = 0.5)
-        ch3, = ax.plot(x_time, data[2], '--g', label ='Channel 3', linewidth = 0.5)
-        ax.legend(loc='upper left')
-
-        # Fourie transform plot
-        ftplot = fig.add_subplot(312)
-        ftplot.set_xlim(0,128)
-        ftplot.set_title('Fourie transform')
-        ftplot.set_xlabel('Freq')
-        ftplot.set_ylabel('Power')
-        ftplot.grid()
-        ftplot.ticklabel_format(axis='both', style='plain')
-        ft1, = ftplot.plot(ft_x, ft_data[0], '-b', label ='Channel 1', linewidth = 0.5)
-
-        # Standard deviation of voltage plot
-        nstdplot = fig.add_subplot(313)
-        nstdplot.grid()
-        nstdplot.set_xlabel('Time, sec')
-        nstdplot.set_ylabel('Standard deviation of Voltage')
-
-        ch1_nstd, = nstdplot.plot(nstd_time, nanstd_data[0], '-b', label ='Channel 1', linewidth = 0.5)
-        ch2_nstd, = nstdplot.plot(nstd_time, nanstd_data[1], '-r', label ='Channel 2', linewidth = 0.5)
-        ch3_nstd, = nstdplot.plot(nstd_time, nanstd_data[2], '-g', label ='Channel 3', linewidth = 0.5)
-
-        nstdplot.legend(loc='upper left')
-
-        fig.show()
 
         while True:
             if self.arduino.inWaiting() >= self.numread * self.packsize:
@@ -173,9 +140,9 @@ class EMG:
                         A = self.datasync(A)
 
                     # Converts uint8 data to float
-                    data[0][k] = self.typecast_swap_float(A[4:6]) # Channel 1 data
-                    data[1][k] = self.typecast_swap_float(A[6:8]) # Channel 2 data
-                    data[2][k] = self.typecast_swap_float(A[8:10]) # Channel 3 data
+                    self.data[0][k] = self.typecast_swap_float(A[4:6]) # Channel 1 data
+                    self.data[1][k] = self.typecast_swap_float(A[6:8]) # Channel 2 data
+                    self.data[2][k] = self.typecast_swap_float(A[8:10]) # Channel 3 data
 
                     # storage_emg.append(A[4:6]) # Storing Channel 1 history data for future debugging
                     # storage_volt.append(data[0][k])
@@ -185,37 +152,23 @@ class EMG:
                     if k >= plotsize:
                         k = 0
 
-
             # Fourie transform
-            ft0_data[0] = np.fft.fft(data[0],nfft)
-            ft_data[0] = [10*np.log10(abs(x)**2/self.frequency/plotsize) for x in ft0_data[0][0:int(nfft/2)]]
+            self.ft0_data[0] = np.fft.fft(self.data[0],self.nfft)
+            self.ft_data[0] = [10*np.log10(abs(x)**2/self.frequency/plotsize) for x in self.ft0_data[0][0:int(self.nfft/2)]]
 
             # Standard deviation
-            nanstd_data[0][k_nstd] = np.nanstd(data[0])
-            nanstd_data[1][k_nstd] = np.nanstd(data[1])
-            nanstd_data[2][k_nstd] = np.nanstd(data[2])
+            self.nstd_data[0][k_nstd] = np.nanstd(self.data[0])
+            self.nstd_data[1][k_nstd] = np.nanstd(self.data[1])
+            self.nstd_data[2][k_nstd] = np.nanstd(self.data[2])
 
             # Loops the plot
             k_nstd += 1
             if k_nstd >= plotsize_nstd:
                 k_nstd = 0
 
-            # Send all new data to plot
-            ch1.set_ydata(data[0])
-            ch2.set_ydata(data[1])
-            ch3.set_ydata(data[2])
-            ax.relim()
-            ax.autoscale_view()
 
-            ft1.set_ydata(ft_data[0])
-            ftplot.relim()
-            ftplot.autoscale_view()
+            self.plot_update()
 
-            ch1_nstd.set_ydata(nanstd_data[0])
-            ch2_nstd.set_ydata(nanstd_data[1])
-            ch3_nstd.set_ydata(nanstd_data[2])
-            nstdplot.relim()
-            nstdplot.autoscale_view()
 
             # Catches error when plot is closed by user
             try:
@@ -223,18 +176,79 @@ class EMG:
             except:
                 break
 
-            # Checks if there are too many packets left in serial, e.g. if speed of processing is fast enough
-            packets_inwaiting = int(np.round(self.arduino.inWaiting()/self.packsize))
-            if packets_inwaiting >= 50:
-                print('Update rate is slow: {} packets inwaiting, {} second delay.'.format(packets_inwaiting, np.round(packets_inwaiting/256,2)))
-
-            # with open('emg_history.pickle', 'w b') as f:
-            #     pickle.dump([storage_emg, storage_volt], f, protocol=pickle.HIGHEST_PROTOCOL)
-
         self.arduino.close()
         print('Connection closed.')
 
 
-emg = EMG('COM3')
-arduino = emg.establish_connection()
-if arduino: emg.realtime_emg()
+    def plot_init(self):
+        self.fig = plt.figure()
+
+        # Voltage channels plot
+        self.ax = self.fig.add_subplot(311)
+        self.ax.set_xlim(0,1)
+        self.ax.set_xlabel('Time')
+        self.ax.set_ylabel("Voltage")
+        self.ax.grid()
+        self.ax.ticklabel_format(axis='both', style='plain')
+
+        self.ch1, = self.ax.plot(self.x_time, self.data[0], '-b', label ='Channel 1', linewidth = 0.5)
+        self.ch2, = self.ax.plot(self.x_time, self.data[1], '--r', label ='Channel 2', linewidth = 0.5)
+        self.ch3, = self.ax.plot(self.x_time, self.data[2], '--g', label ='Channel 3', linewidth = 0.5)
+        self.ax.legend(loc='upper left')
+
+        # Fourie transform plot
+        self.ftplot = self.fig.add_subplot(312)
+        self.ftplot.set_xlim(0,128)
+        self.ftplot.set_title('Fourie transform')
+        self.ftplot.set_xlabel('Freq')
+        self.ftplot.set_ylabel('Power')
+        self.ftplot.grid()
+        self.ftplot.ticklabel_format(axis='both', style='plain')
+        self.ft1, = self.ftplot.plot(self.ft_x, self.ft_data[0], '-b', label ='Channel 1', linewidth = 0.5)
+
+        # Standard deviation of voltage plot
+        self.nstdplot = self.fig.add_subplot(313)
+        self.nstdplot.grid()
+        self.nstdplot.set_xlabel('Time, sec')
+        self.nstdplot.set_ylabel('Standard deviation of Voltage')
+
+        self.ch1_nstd, = self.nstdplot.plot(self.nstd_time, self.nstd_data[0], '-b', label ='Channel 1', linewidth = 0.5)
+        self.ch2_nstd, = self.nstdplot.plot(self.nstd_time, self.nstd_data[1], '-r', label ='Channel 2', linewidth = 0.5)
+        self.ch3_nstd, = self.nstdplot.plot(self.nstd_time, self.nstd_data[2], '-g', label ='Channel 3', linewidth = 0.5)
+
+        self.nstdplot.legend(loc='upper left')
+
+        self.fig.show()
+
+        return True
+
+    def plot_update(self):
+        # Send all new data to plot
+        self.ch1.set_ydata(self.data[0])
+        self.ch2.set_ydata(self.data[1])
+        self.ch3.set_ydata(self.data[2])
+        self.ax.relim()
+        self.ax.autoscale_view()
+
+        self.ft1.set_ydata(self.ft_data[0])
+        self.ftplot.relim()
+        self.ftplot.autoscale_view()
+
+        self.ch1_nstd.set_ydata(self.nstd_data[0])
+        self.ch2_nstd.set_ydata(self.nstd_data[1])
+        self.ch3_nstd.set_ydata(self.nstd_data[2])
+        self.nstdplot.relim()
+        self.nstdplot.autoscale_view()
+
+        # Checks if there are too many packets left in serial, e.g. if speed of processing is fast enough
+        packets_inwaiting = int(np.round(self.arduino.inWaiting()/self.packsize))
+        if packets_inwaiting >= 50:
+            print('Update rate is slow: {} packets inwaiting, {} second delay.'.format(packets_inwaiting, np.round(packets_inwaiting/256,2)))
+
+def main():
+    emg = EMG('COM3')
+    arduino = emg.establish_connection()
+    if arduino: emg.realtime_emg()
+
+if __name__ == '__main__':
+    main()
