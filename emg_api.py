@@ -10,7 +10,7 @@ from scipy import signal
 from multiprocessing import Process
 
 class EMG:
-    def __init__(self, serialport='/dev/cu.wchusbserial1420',baudrate=115200,numread=30,packsize=17,frequency=256,syncbyte1=165,syncbyte2=90,connection_timeout=5,first_byte = b'A',plotting=True):
+    def __init__(self, serialport='/dev/cu.wchusbserial1420',baudrate=115200,numread=30,packsize=17,frequency=256,syncbyte1=165,syncbyte2=90,connection_timeout=5,first_byte = b'A',plotting=True, plotsize=256,nstd_timespan=256):
         self.serialport = serialport
         self.baudrate = baudrate
         self.numread = numread
@@ -22,6 +22,27 @@ class EMG:
         self.first_byte = first_byte
         self.arduino = None
         self.plotting = plotting
+        self.nstd_timespan = nstd_timespan
+        self.plotsize = plotsize
+
+        self.plotsize_nstd = self.nstd_timespan
+
+        # Voltage data of 6 channels
+        self.data = [deque(list(np.zeros(self.plotsize)),maxlen=self.plotsize) for x in range(0,6)]
+        self.x_time = deque([x/self.frequency for x in range(self.plotsize)],maxlen=self.plotsize)
+
+        # Fourie transform of voltage data for Channel 1
+        self.nfft = self.frequency
+        self.ft_x = [int(self.frequency/self.nfft*x) for x in range(int(self.nfft/2))]
+        self.ft0_data = [[0]*self.nfft]
+        self.ft_data = [[0]*len(self.ft_x)]
+
+        # Standard deviation of 6 channels
+        self.nstd_data = [deque([0],maxlen=self.plotsize_nstd) for x in range(0,6)]
+
+        # Trying to pick up rigth time scale (doesn't work properly, redesign is needed)
+        self.nstd_time = deque([0],maxlen=self.plotsize_nstd)
+
 
     def establish_connection(self):
         try:
@@ -55,6 +76,11 @@ class EMG:
             print('Connection failed.')
             self.arduino.close()
             return None
+
+    def clean_port(self):
+        while self.arduino.inWaiting() >= 2 * self.packsize:
+            self.read_pack()
+        print('Serial port is cleaned')
 
     def typecast_swap_float(self, arr):
         '''
@@ -95,88 +121,55 @@ class EMG:
 
     def read_packs(self, num = None):
         if num == None: num = self.numread
-
-        # Defining variable for storage of all 6 voltage channels data
-        voltage_data = [[] for x in range(0,6)]
-
         if self.arduino.inWaiting() >= num * self.packsize:
             for i in range(self.numread):
                 A = self.read_pack()
-                # Converts uint8 data to float
-                voltage_data[0].append(self.typecast_swap_float(A[4:6]))   # Channel 1 data
-                voltage_data[1].append(self.typecast_swap_float(A[6:8]))   # Channel 2 data
-                voltage_data[2].append(self.typecast_swap_float(A[8:10]))  # Channel 3 data
-                voltage_data[3].append(self.typecast_swap_float(A[10:12])) # Channel 4 data
-                voltage_data[4].append(self.typecast_swap_float(A[12:14])) # Channel 5 data
-                voltage_data[5].append(self.typecast_swap_float(A[14:16])) # Channel 6 data
+                self.data[0].append(self.typecast_swap_float(A[4:6]))   # Channel 1 data
+                self.data[1].append(self.typecast_swap_float(A[6:8]))   # Channel 2 data
+                self.data[2].append(self.typecast_swap_float(A[8:10]))  # Channel 3 data
+                self.data[3].append(self.typecast_swap_float(A[10:12])) # Channel 4 data
+                self.data[4].append(self.typecast_swap_float(A[12:14])) # Channel 5 data
+                self.data[5].append(self.typecast_swap_float(A[14:16])) # Channel 6 data
 
-        return voltage_data
+        return self.data
 
+    def compute_nanstd(self):
+        self.nstd_data[0].append(np.nanstd(self.data[0]))
+        self.nstd_data[1].append(np.nanstd(self.data[1]))
+        self.nstd_data[2].append(np.nanstd(self.data[2]))
+        self.nstd_data[3].append(np.nanstd(self.data[3]))
+        self.nstd_data[4].append(np.nanstd(self.data[4]))
+        self.nstd_data[5].append(np.nanstd(self.data[5]))
+        return self.nstd_data
 
     def realtime_emg(self,plotting=True):
         '''
         Realtime reading and processing of data from Arduino electrodes
         '''
         plotsize = self.frequency
-        nstd_timespan = 10 # 10 second
-        plotsize_nstd = nstd_timespan*self.numread
-
-        k = 0
-        k_nstd = 0
-
-        # Voltage data of 6 channels
-        self.data = [deque(list(np.zeros(plotsize)),maxlen=plotsize) for x in range(0,6)]
-        self.x_time = [x/self.frequency for x in range(plotsize)]
-
-        # Fourie transform of voltage data for Channel 1
-        self.nfft = self.frequency
-        self.ft_x = [int(self.frequency/self.nfft*x) for x in range(int(self.nfft/2))]
-        self.ft0_data = [[0]*self.nfft]
-        self.ft_data = [[0]*len(self.ft_x)]
-
-        # Standard deviation of 6 channels
-        self.nstd_data = [deque(list(np.zeros(plotsize_nstd)),maxlen=plotsize_nstd) for x in range(0,6)]
-
-        # Trying to pick up rigth time scale (doesn't work properly, redesign is needed)
-        self.nstd_time = [x/np.round(self.frequency/self.numread) for x in range(plotsize_nstd)]
-
-        storage_emg = []
-        storage_volt = []
-
         # Plot initialization
         self.plot_init()
 
         p = Process(target=self.plot_update())
 
         while True:
-            voltage_data = self.read_packs()
-            self.data[0].extend(voltage_data[0]) # Channel 1 data
-            self.data[1].extend(voltage_data[1]) # Channel 2 data
-            self.data[2].extend(voltage_data[2]) # Channel 3 data
-            self.data[3].extend(voltage_data[3]) # Channel 4 data
-            self.data[4].extend(voltage_data[4]) # Channel 5 data
-            self.data[5].extend(voltage_data[5]) # Channel 6 data
+
+            self.read_packs()
 
             # Fourie transform
             self.ft0_data[0] = np.fft.fft(self.data[0],self.nfft)
-            self.ft_data[0] = [10*np.log10(abs(x)**2/self.frequency/plotsize) for x in self.ft0_data[0][0:int(self.nfft/2)]]
+            self.ft_data[0] = [10*np.log10(abs(x)**2/self.frequency/self.plotsize) for x in self.ft0_data[0][0:int(self.nfft/2)]]
 
             # Standard deviation
-            self.nstd_data[0].append(np.nanstd(self.data[0]))
-            self.nstd_data[1].append(np.nanstd(self.data[1]))
-            self.nstd_data[2].append(np.nanstd(self.data[2]))
+            self.compute_nanstd()
+            self.nstd_time.append(self.nstd_time[-1]+self.numread*(1/self.frequency))
 
-            if self.plot_update():
-                # Catches error when plot is closed by user
-                try:
-                    plt.pause(0.0001)
-                except:
-                    break
+            if not self.plot_update():
+                # Stop proccess when plot is closed by user
+                break
 
         self.arduino.close()
         print('Connection closed.')
-
-
 
     def plot_init(self):
         self.fig = plt.figure()
@@ -238,16 +231,30 @@ class EMG:
             self.ch1_nstd.set_ydata(self.nstd_data[0])
             self.ch2_nstd.set_ydata(self.nstd_data[1])
             self.ch3_nstd.set_ydata(self.nstd_data[2])
+            self.ch1_nstd.set_xdata(self.nstd_time)
+            self.ch2_nstd.set_xdata(self.nstd_time)
+            self.ch3_nstd.set_xdata(self.nstd_time)
+
             self.nstdplot.relim()
             self.nstdplot.autoscale_view()
 
             # Checks if there are too many packets left in serial, e.g. if speed of processing is fast enough
-            packets_inwaiting = int(np.round(self.arduino.inWaiting()/self.packsize))
+            packets_inwaiting = self.inwaiting()
             if packets_inwaiting >= 50:
                 print('Update rate is slow: {} packets inwaiting, {} second delay.'.format(packets_inwaiting, np.round(packets_inwaiting/256,2)))
+
+            try:
+                # Catches error when plot is closed by user
+                plt.pause(0.0001)
+            except:
+                return False
+
             return True
         else:
             return False
+
+    def inwaiting(self):
+        return int(np.round(self.arduino.inWaiting()/self.packsize))
 
 
 if __name__ == '__main__':
