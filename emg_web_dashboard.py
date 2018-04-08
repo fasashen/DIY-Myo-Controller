@@ -8,6 +8,9 @@ import plotly.graph_objs as go
 from collections import deque
 import numpy as np
 import emg_api
+from io import StringIO
+import json
+import requests
 
 
 app = dash.Dash(__name__)
@@ -22,6 +25,7 @@ app.layout = html.Div([
 
             dcc.Slider(
                 id='slider-update',
+                updatemode='drag',
                 min=1,
                 max=6,
                 marks={i+1: 'Channel {}'.format(i+1) for i in range(6)},
@@ -31,9 +35,6 @@ app.layout = html.Div([
 
 
         ],className='row', style={'margin-left':30,'margin-right':30,'vertical-align': 'middle'}),
-
-
-
 
         html.Div([
             html.Div([
@@ -63,15 +64,15 @@ app.layout = html.Div([
 
         dcc.Interval(
             id='graph-update',
-            interval=2000),
+            interval=1*1000),
 
         dcc.Interval(
             id='nanstd-update',
-            interval=2000),
+            interval=1*1000),
 
         dcc.Interval(
             id='data-update',
-            interval=20),
+            interval=1*1000),
 
         html.Div(id='hidden-div', style={'display':'none'})
 
@@ -79,37 +80,31 @@ app.layout = html.Div([
 )
 
 
-
-
 @app.callback(Output('hidden-div', 'style'),
-              events=[Event('data-update', 'interval')])
-def update_all_data():
-    emg.read_packs()
+              events=[Event('data-update', 'interval')],
+              inputs=[Input('slider-update', 'value')])
+def update_all_data(channels_to_plot):
 
-    # Fourie transform
-    emg.ft0_data[0] = np.fft.fft(emg.data[0],emg.nfft)
-    emg.ft_data[0] = [10*np.log10(abs(x)**2/emg.frequency/emg.plotsize) for x in emg.ft0_data[0][0:int(emg.nfft/2)]]
+    global data
 
-    # Standard deviation
-    emg.compute_nanstd()
-    emg.nstd_time.append(emg.nstd_time[-1]+emg.numread*(1/emg.frequency))
-
-    packets_inwaiting = emg.inwaiting()
-    if packets_inwaiting >= 50:
-        print('Update rate is slow: {} packets inwaiting, {} second delay.'.format(packets_inwaiting, np.round(packets_inwaiting/256,2)))
+    r = requests.get('http://localhost:5000/emg/{}'.format(channels_to_plot))
+    data = r.json()
 
     return {'display':'none'}
 
 
 @app.callback(Output('voltage-graph', 'figure'),
-              events=[Event('graph-update', 'interval')],
-              inputs=[Input('slider-update', 'value')])
-def update_voltage_plot(channels_to_plot):
+              events=[Event('graph-update', 'interval')])
+def update_voltage_plot():
 
-    connection_check()
-    volt = emg.data
+    global data
+
+    volt = data['voltage_y']
+    X = data['voltage_x']
+    channels_to_plot = len(volt)
 
     channels = range(0,channels_to_plot)
+    maxval, minval = max_min(volt[:channels_to_plot])
     voltage_plots = []
 
     for ch in channels:
@@ -121,20 +116,22 @@ def update_voltage_plot(channels_to_plot):
                 ))
 
     return {'data': voltage_plots,'layout' : go.Layout(xaxis=dict(range=[min(X),max(X)]),
-                                                yaxis=dict(range=[min(volt[0])-10,max(volt[0])+10]),
+                                                yaxis=dict(range=[minval,maxval]),
                                                 title="Raw Voltage Data")}
 
 
 @app.callback(Output('nanstd-graph', 'figure'),
-              events=[Event('nanstd-update', 'interval')],
-              inputs=[Input('slider-update', 'value')])
-def update_nanstd_plot(channels_to_plot):
+              events=[Event('nanstd-update', 'interval')])
+def update_nanstd_plot():
 
-    connection_check()
-    nanstd = emg.nstd_data
-    x_nanstd = emg.nstd_time
+    global data
+
+    nanstd = data['nanstd_y']
+    x_nanstd = data['nanstd_x']
+    channels_to_plot = len(nanstd)
 
     channels = range(0,channels_to_plot)
+    maxval, minval = max_min(nanstd[:channels_to_plot])
     nanstd_plots = []
 
     for ch in channels:
@@ -146,18 +143,18 @@ def update_nanstd_plot(channels_to_plot):
                 ))
 
     return {'data': nanstd_plots,'layout' : go.Layout(xaxis=dict(range=[min(x_nanstd),max(x_nanstd)]),
-                                                yaxis=dict(range=[min(nanstd[0]),max(nanstd[0])]),
+                                                yaxis=dict(range=[minval,maxval]),
                                                 title="Standard deviation")}
 
-
 @app.callback(Output('freq-graph', 'figure'),
-              events=[Event('graph-update', 'interval')],
-              inputs=[Input('slider-update', 'value')])
-def update_freq_plot(channels_to_plot):
+              events=[Event('graph-update', 'interval')])
+def update_freq_plot():
 
-    connection_check()
-    freq = emg.ft_data
-    x_freq = emg.ft_x
+    global data
+
+    freq = data['freq_y']
+    x_freq = data['freq_x']
+    channels_to_plot = len(freq)
 
     channels = range(0,channels_to_plot)
     nanstd_plots = []
@@ -174,8 +171,6 @@ def update_freq_plot(channels_to_plot):
                                                 yaxis=dict(range=[min(freq[0]),max(freq[0])]),
                                                 title="Fourie transform")}
 
-
-
 external_css = ["https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css"]
 for css in external_css:
     app.css.append_css({"external_url": css})
@@ -184,20 +179,14 @@ external_js = ['https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/js/ma
 for js in external_css:
     app.scripts.append_script({'external_url': js})
 
-
-
-def connection_check():
-    if 'connection' not in globals():
-        global connection
-        connection = emg.establish_connection()
-    if not connection:
-        print('Trying to establish connection with arduino')
-        connection = emg.establish_connection()
+def max_min(lists):
+    maxval = max(lists[0])
+    minval = min(lists[0])
+    for list in lists:
+        if maxval < max(list): maxval = max(list)
+        if minval > min(list): minval = min(list)
+    return maxval, minval
 
 if __name__ == '__main__':
-
-    emg = emg_api.EMG('COM3',numread=30, plotting=False, plotsize = 256, nstd_timespan = 1280)
-    X = emg.x_time
-    channels = range(0,1)
-
+    data = {}
     app.run_server(debug=True)

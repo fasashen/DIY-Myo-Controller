@@ -131,6 +131,14 @@ class EMG:
                 self.data[4].append(self.typecast_swap_float(A[12:14])) # Channel 5 data
                 self.data[5].append(self.typecast_swap_float(A[14:16])) # Channel 6 data
 
+        # Fourie transform
+        self.ft0_data[0] = np.fft.fft(self.data[0],self.nfft)
+        self.ft_data[0] = [10*np.log10(abs(x)**2/self.frequency/self.plotsize) for x in self.ft0_data[0][0:int(self.nfft/2)]]
+
+        # Standard deviation
+        self.compute_nanstd()
+        self.nstd_time.append(self.nstd_time[-1]+self.numread*(1/self.frequency))
+
         return self.data
 
     def compute_nanstd(self):
@@ -155,14 +163,6 @@ class EMG:
         while True:
 
             self.read_packs()
-
-            # Fourie transform
-            self.ft0_data[0] = np.fft.fft(self.data[0],self.nfft)
-            self.ft_data[0] = [10*np.log10(abs(x)**2/self.frequency/self.plotsize) for x in self.ft0_data[0][0:int(self.nfft/2)]]
-
-            # Standard deviation
-            self.compute_nanstd()
-            self.nstd_time.append(self.nstd_time[-1]+self.numread*(1/self.frequency))
 
             if not self.plot_update():
                 # Stop proccess when plot is closed by user
