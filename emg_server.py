@@ -8,6 +8,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from flask import Flask
 from flask import request
 import json
+from time import gmtime, strftime
 import emg_web_dashboard as ewd
 
 app = Flask(__name__)
@@ -36,7 +37,8 @@ def get_emg(channels_to_plot=1):
          'nanstd_y': list(nanstd),
          'nanstd_x': list(emg.nstd_time),
          'freq_y': list(emg.ft_data),
-         'freq_x': list(emg.ft_x)},
+         'freq_x': list(emg.ft_x),
+         'server_time': strftime("%H:%M:%S", gmtime())},
         sort_keys=False,
         indent=4,
         separators=(',', ': '))

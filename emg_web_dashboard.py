@@ -10,6 +10,7 @@ import numpy as np
 import emg_api
 from io import StringIO
 import json
+from time import gmtime, strftime
 import requests
 
 
@@ -30,11 +31,23 @@ app.layout = html.Div([
                 max=6,
                 marks={i+1: 'Channel {}'.format(i+1) for i in range(6)},
                 step=None,
-                value=1,
+                value=2,
                 className='col s4 offset-s2'),
 
+        ], className='row', style={'margin-left':30,'margin-right':30,'vertical-align': 'middle'}),
 
-        ],className='row', style={'margin-left':30,'margin-right':30,'vertical-align': 'middle'}),
+        html.Div([
+            html.Div(
+                children='Dash time: ',
+                className="col s1"),
+
+            html.Div(
+                children='Server time: ',
+                className="col s1")
+        ],
+            id='time-div',
+            className="row",
+            style={'margin-left':30,'margin-right':30,'vertical-align': 'middle'}),
 
         html.Div([
             html.Div([
@@ -72,7 +85,7 @@ app.layout = html.Div([
 
         dcc.Interval(
             id='data-update',
-            interval=1*1000),
+            interval=1*2000),
 
         html.Div(id='hidden-div', style={'display':'none'})
 
@@ -80,7 +93,7 @@ app.layout = html.Div([
 )
 
 
-@app.callback(Output('hidden-div', 'style'),
+@app.callback(Output('time-div', 'children'),
               events=[Event('data-update', 'interval')],
               inputs=[Input('slider-update', 'value')])
 def update_all_data(channels_to_plot):
@@ -90,7 +103,18 @@ def update_all_data(channels_to_plot):
     r = requests.get('http://localhost:5000/emg/{}'.format(channels_to_plot))
     data = r.json()
 
-    return {'display':'none'}
+
+    dash_time = html.Div(
+        children='Dash time: ' + strftime("%H:%M:%S", gmtime()),
+        className="col s1")
+
+    server_time = html.Div(
+        children='Server time: ' + str(data['server_time']),
+        className="col s1")
+
+
+    return [dash_time, server_time]
+
 
 
 @app.callback(Output('voltage-graph', 'figure'),
