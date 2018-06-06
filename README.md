@@ -1,4 +1,4 @@
-# EMG-Controller
+# Electromyography (EMG) data controller
 
 This project is currently in development and it's meant to process EMG muscle data using machine learning algorithm to generate control commands.
 
