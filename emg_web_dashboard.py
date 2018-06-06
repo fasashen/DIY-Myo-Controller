@@ -1,18 +1,11 @@
+from time import gmtime, strftime
+
 import dash
-from dash.dependencies import Output, Event, Input
 import dash_core_components as dcc
 import dash_html_components as html
-import plotly
-import random
 import plotly.graph_objs as go
-from collections import deque
-import numpy as np
-import emg_api
-from io import StringIO
-import json
-from time import gmtime, strftime
 import requests
-
+from dash.dependencies import Output, Event, Input
 
 app = dash.Dash(__name__)
 

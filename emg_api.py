@@ -1,13 +1,11 @@
-import serial
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-import time
 import struct
-import pickle
+import time
 from collections import deque
-from scipy import signal
 from multiprocessing import Process
+
+import matplotlib.pyplot as plt
+import numpy as np
+import serial
 
 
 class EMG:

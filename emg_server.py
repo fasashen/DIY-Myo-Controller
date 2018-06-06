@@ -1,15 +1,13 @@
-import os
-import emg_api
-import time
 import atexit
+import json
+from time import gmtime, strftime
+
 import numpy as np
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from flask import Flask
-from flask import request
-import json
-from time import gmtime, strftime
-import emg_web_dashboard as ewd
+
+import emg_api
 
 app = Flask(__name__, static_url_path='/static')
 
