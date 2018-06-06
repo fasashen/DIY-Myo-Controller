@@ -1,6 +1,6 @@
-# EMG-Controlled Robotic Hand
+# EMG-Controller
 
-This project is currently in development and it's ment to control Arduino-based robotic hand by EMG muscle data using machine learning algorithm
+This project is currently in development and it's meant to process EMG muscle data using machine learning algorithm to generate control commands.
 
 ![Live dashboard using Dash by plotly](https://i.imgur.com/0bKAc9m.png)
 
