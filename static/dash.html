@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Page Title</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue-resource@1.5.0"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <!-- Load d3.js and c3.js -->
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.6.1/c3.min.js"></script>
+  <!-- Load c3.css -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/c3/0.6.1/c3.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+  <div id="dash">
+
+    <button v-on:click="load_emg">Update</button>
+
+
+
+  <div id="chart"></div>
+
+  <!-- {{ emg_data }} -->
+
+  </div>
+
+</body>
+
+<script>
+
+var dash = new Vue({
+  el: '#dash',
+  data: {
+    message: 'Hello Vue!',
+    emg_data: {},
+    emg_api: 'http://localhost:5000/emg/'
+  },
+  methods: {
+    load_emg: function() {
+      axios.get(this.emg_api)
+      .then(response => {
+        this.emg_data = response.data
+        plot_update()
+      })
+      .catch(error => {
+        console.log(error)
+      })
+    }
+  }
+})
+
+
+var chart = c3.generate({
+    data: {
+        // x: 'voltage_x',
+        columns: []
+    },
+    transition: {
+        duration: 1
+    }
+});
+
+function plot_update() {
+  chart.load({
+      columns: [
+          // [...['voltage_x'], ...dash.emg_data.nanstd_x],
+          [...['voltage_y'], ...dash.emg_data.nanstd_y[0]]
+      ],
+      type: 'step'
+  })
+}
+
+var t = setInterval(dash.load_emg,500);
+
+// setTimeout(function () {
+//     chart.load({
+//         columns: [
+//             ['data3', 130, 150, 200, 300, 200, 100]
+//         ]
+//     });
+// }, 1500);
+
+// setTimeout(function () {
+//     chart.unload({
+//         ids: 'data1'
+//     });
+// }, 2000);
+
+
+</script>
+
+</html>

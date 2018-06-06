@@ -9,6 +9,7 @@ from collections import deque
 from scipy import signal
 from multiprocessing import Process
 
+
 class EMG:
     def __init__(self, serialport='/dev/cu.wchusbserial1420',baudrate=115200,numread=30,packsize=17,frequency=256,syncbyte1=165,syncbyte2=90,connection_timeout=5,first_byte = b'A',plotting=True, plotsize=256,nstd_timespan=256):
         self.serialport = serialport
@@ -48,8 +49,8 @@ class EMG:
         try:
             self.arduino = serial.Serial(self.serialport, self.baudrate)
             print('Serial port found. Trying to establish connection...')
-        except:
-            print('Could not find serial port')
+        except Exception as e:
+            print('Could not find serial port: error {}'.format(e))
             return None
 
         time_elapsed = 0
@@ -258,6 +259,7 @@ class EMG:
 
 
 if __name__ == '__main__':
+    print(serial.__file__)
     emg = EMG('COM3',numread=30, plotting=True)
     arduino = emg.establish_connection()
     if arduino: emg.realtime_emg()

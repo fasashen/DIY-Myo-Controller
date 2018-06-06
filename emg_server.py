@@ -11,11 +11,11 @@ import json
 from time import gmtime, strftime
 import emg_web_dashboard as ewd
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 
 @app.route("/")
-def hello():
-    return "Hello World!"
+def index():
+    return app.send_static_file('dash.html')
 
 @app.route("/emg/", methods=['GET'])
 @app.route("/emg/<channels_to_plot>", methods=['GET'])
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     try:
         emg = emg_api.EMG('COM3',numread=20, plotting=False, plotsize = 256, nstd_timespan = 2560)
         connection = emg.establish_connection()
-    except:
-        print('Connection to arduino failed')
+    except Exception as e:
+        print('Connection to arduino failed: {}'.format(e))
     print('Flask server started')
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False, threaded=True)
