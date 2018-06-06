@@ -11,9 +11,9 @@ Repository contains arduino source code for passing raw EMG data to computer and
 * Arduino code that sends voltage data
 * Python module *emg_api.py* that provides API to connect, synchronise and read data in real-time from Arduino
 * Server on Flask *emg_server.py* for real-time reading, processing and analyzing data from Arduino and sending processed data (e.g. Fourie transform) it to localhost:5000/emg/{channel} in *json* format. For now it's processing this data:
-..* Fourie transform for frequency spectre analysis
-..* Standart deviation calculation that will be used for ML as input
-..* Just a raw voltage data
+  * Fourie transform for frequency spectre analysis
+  * Standart deviation calculation that will be used for ML as input
+  * Just a raw voltage data
 * Live web dashboard *emg_web_dashboard.py* made with [Dash by Plotly](https://plot.ly/products/dash/) that reads data from server and visualize it
 ![Changing number of channels showing](https://media.giphy.com/media/TH2ezXdGOONqkhkqFF/giphy.gif)
 * Vue.js web dashboard prototype (made just for fun to see what possibilities are available)
